@@ -1,0 +1,1 @@
+Set-Content requirements.txt "mujoco==4.0.1", "numpy", "pillow" -Encoding ascii

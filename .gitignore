@@ -1,2 +1,3 @@
 .venv/
 capturas/
+__pycache__/

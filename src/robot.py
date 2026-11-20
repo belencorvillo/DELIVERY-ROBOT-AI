@@ -1,5 +1,6 @@
-"""Control del robot: base por velocidad."""
+"""Control del robot: base por velocidad, brazo y pinza."""
 import numpy as np
+from escena import BRAZO_PLEGADO
 
 VEL_MAX = 0.5      # m/s, velocidad maxima de avance y lateral
 GIRO_MAX = 1.0     # rad/s, velocidad maxima de giro
@@ -44,3 +45,44 @@ class Base:
         objetivo = np.clip(objetivo, actual - correa, actual + correa)
         for nombre, valor in zip(self.nombres, objetivo):
             self.datos.actuator(nombre).ctrl = valor
+
+
+            
+
+# ---------------- Brazo y pinza ----------------
+# Postura "home" del TidyBot: brazo desplegado, listo para trabajar
+BRAZO_LISTO = [0, 0.26179939, 3.14159265, -2.26892803, 0, 0.95993109, 1.57079633]
+
+
+class Brazo:
+    """Brazo de 7 articulaciones + pinza. Motores de posicion: se les da angulos (radianes)."""
+
+    def __init__(self, modelo, datos, prefijo="robot/"):
+        self.datos = datos
+        self.prefijo = prefijo
+        self.nombres = [f"{prefijo}joint_{i}" for i in range(1, 8)]
+
+    def angulos(self):
+        """Angulos actuales de las 7 articulaciones."""
+        return [float(self.datos.joint(n).qpos[0]) for n in self.nombres]
+
+    def mover_a(self, angulos):
+        """Ordena ir a estos 7 angulos (los motores se encargan de llegar)."""
+        for nombre, valor in zip(self.nombres, angulos):
+            self.datos.actuator(nombre).ctrl = valor
+
+    def plegar(self):
+        self.mover_a(BRAZO_PLEGADO)
+
+    def desplegar(self):
+        self.mover_a(BRAZO_LISTO)
+
+    def abrir_pinza(self):
+        self.datos.actuator(self.prefijo + "fingers_actuator").ctrl = 0
+
+    def cerrar_pinza(self):
+        self.datos.actuator(self.prefijo + "fingers_actuator").ctrl = 255
+
+    def posicion_pinza(self):
+        """Punto entre los dedos de la pinza, en coordenadas del mundo."""
+        return self.datos.site(self.prefijo + "pinch_site").xpos.copy()
