@@ -1,0 +1,10 @@
+<mujoco>
+  <worldbody>
+    <body name="urbanizacion" pos="0 0 0">
+      <geom name="calle" type="box" size="8.5 1.5 0.001" pos="9.5 -0.6 0.001" rgba="0.15 0.15 0.17 1" contype="0" conaffinity="0"/>
+      <geom name="acera_norte" type="box" size="8.5 0.5 0.002" pos="9.5 1.4 0.002" rgba="0.6 0.6 0.58 1" contype="0" conaffinity="0"/>
+      <geom name="acera_sur" type="box" size="8.5 0.5 0.002" pos="9.5 -2.6 0.002" rgba="0.6 0.6 0.58 1" contype="0" conaffinity="0"/>
+      <camera name="cam_urbanizacion" pos="9 -0.6 18" xyaxes="1 0 0 0 1 0" fovy="50"/>
+    </body>
+  </worldbody>
+</mujoco>

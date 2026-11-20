@@ -38,11 +38,11 @@ def generar_paquetes(semilla):
     return paquetes
 
 
-def anadir_paquetes(spec, paquetes):
+def anadir_paquetes(spec, paquetes, altura=ALTURA_TABLON):
     """Mete los paquetes en la escena como cuerpos libres."""
     for p in paquetes:
         r = p["medida"]
-        z = ALTURA_TABLON + r + 0.002  # justo encima del tablon
+        z = altura + r + 0.002  # justo encima del tablon (o de la cesta)
         quat = [np.cos(p["giro"] / 2), 0, 0, np.sin(p["giro"] / 2)]
         body = spec.worldbody.add_body(name=p["nombre"], pos=[*p["pos"], z], quat=quat)
         body.add_freejoint()
