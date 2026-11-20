@@ -29,6 +29,31 @@ from escena import (construir_escena_pick, construir_escena_reparto, colocar_rob
                     PUNTO_RECOGIDA, distancia_entrega)
 from robot import Base, Brazo
 
+def region_principal(mascara):
+    """Se queda con la region conectada principal de la mascara, quitando los pixeles
+    sueltos de ruido que deja el renderizado."""
+    if not mascara.any():
+        return mascara
+    # 1. Semilla: el pixel con mas vecinos dentro de la mascara (seguro que es de la mancha)
+    m = np.pad(mascara, 1).astype(np.uint8)
+    alto, ancho = mascara.shape
+    vecinos = sum(m[1 + df:1 + df + alto, 1 + dc:1 + dc + ancho]
+                  for df in (-1, 0, 1) for dc in (-1, 0, 1)) * mascara
+    semilla = np.unravel_index(np.argmax(vecinos), mascara.shape)
+    # 2. Crecer desde la semilla visitando vecinos que esten en la mascara ("relleno")
+    dentro = mascara.tolist()
+    mancha = np.zeros_like(mascara)
+    pendientes = [semilla]
+    mancha[semilla] = True
+    while pendientes:
+        f, c = pendientes.pop()
+        for nf in (f - 1, f, f + 1):
+            for nc in (c - 1, c, c + 1):
+                if 0 <= nf < alto and 0 <= nc < ancho and dentro[nf][nc] and not mancha[nf, nc]:
+                    mancha[nf, nc] = True
+                    pendientes.append((nf, nc))
+    return mancha
+
 
 class Entorno:
     def __init__(self, escena, semilla=0, visor=False, ancho=640, alto=480):
@@ -135,5 +160,44 @@ class Entorno:
         return self.datos.body("robot/cesta").xpos.copy() + [0, 0, 0.01]
 
     # ---------- Metricas (para evaluar, NO para que la logica haga trampas) ----------
+       # ---------- Metricas y etiquetas (para evaluar y generar datos, NO para la logica) ----------
+    def etiquetas(self, nombre_camara=None):
+        """Imagen de una camara + la verdad de cada objeto que aparece en ella.
+        Escena "pick": los paquetes (por defecto con la camara cenital).
+        Escena "reparto": las casas (por defecto con la camara frontal).
+        Cada objeto visible trae su recuadro en la imagen [u_min, v_min, u_max, v_max],
+        cuantos pixeles se ven de el y su mascara (True en los pixeles donde se ve).
+        SOLO para generar datasets y evaluar: la logica del robot no debe usarla."""
+        if self.escena == "pick":
+            nombre_camara = nombre_camara or "cam_cenital"
+            objetos = [dict(p, geom=self.modelo.body(p["nombre"]).geomadr[0]) for p in self.paquetes]
+        else:
+            nombre_camara = nombre_camara or "robot/frontal"
+            objetos = [{"nombre": f"casa_{i}", "color": color,
+                        "geom": self.modelo.geom(f"casa_{i}/paredes").id}
+                       for color, i in sorted(self.casas.items(), key=lambda c: c[1])]
+
+        imagen = self.camara(nombre_camara)
+        # Segmentacion: para cada pixel, que objeto de la escena se ve en el
+        self._renderer.enable_segmentation_rendering()
+        self._renderer.update_scene(self.datos, camera=nombre_camara)
+        segmentacion = self._renderer.render()
+        self._renderer.disable_segmentation_rendering()
+        es_geom = segmentacion[:, :, 1] == int(mujoco.mjtObj.mjOBJ_GEOM)
+
+        visibles = []
+        for objeto in objetos:
+            mascara = region_principal(es_geom & (segmentacion[:, :, 0] == objeto["geom"]))
+            if not mascara.any():
+                continue                      # no se ve (fuera de la imagen o tapado)
+            filas, columnas = np.nonzero(mascara)
+            etiqueta = {k: v for k, v in objeto.items() if k != "geom"}
+            etiqueta["recuadro"] = [int(columnas.min()), int(filas.min()),
+                                    int(columnas.max()), int(filas.max())]
+            etiqueta["pixeles"] = int(mascara.sum())
+            etiqueta["mascara"] = mascara
+            visibles.append(etiqueta)
+        return imagen, visibles
+
     def distancia_entrega(self, casa):
         return distancia_entrega(self.modelo, self.datos, casa)
