@@ -52,10 +52,3 @@ def anadir_paquetes(spec, paquetes):
             tipo, size = mujoco.mjtGeom.mjGEOM_CYLINDER, [r, r, 0]
         body.add_geom(type=tipo, size=size, rgba=COLORES[p["color"]], mass=0.2)
 
-
-def construir_escena_pick(semilla, ruta="escenas/escena_pick.xml"):
-    """Carga la escena, le anade los paquetes y la compila."""
-    spec = mujoco.MjSpec.from_file(ruta)
-    paquetes = generar_paquetes(semilla)
-    anadir_paquetes(spec, paquetes)
-    return spec.compile(), paquetes
