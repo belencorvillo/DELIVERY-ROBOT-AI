@@ -1,0 +1,4 @@
+<mujoco model="escena_pick">
+  <include file="../assets/mundo.xml"/>
+  <include file="../assets/zona_paquetes.xml"/>
+</mujoco>
