@@ -23,6 +23,7 @@ import time
 
 import mujoco
 import mujoco.viewer
+import numpy as np
 
 from escena import (construir_escena_pick, construir_escena_reparto, colocar_robot,
                     PUNTO_RECOGIDA, distancia_entrega)
@@ -44,6 +45,7 @@ class Entorno:
         self.datos = mujoco.MjData(self.modelo)
         self.base = Base(self.modelo, self.datos)
         self.brazo = Brazo(self.modelo, self.datos)
+        self.ancho, self.alto = ancho, alto
         self._renderer = mujoco.Renderer(self.modelo, alto, ancho)
         self._visor = mujoco.viewer.launch_passive(self.modelo, self.datos) if visor else None
         self.reset()
@@ -95,6 +97,38 @@ class Entorno:
         if profundidad:
             self._renderer.disable_depth_rendering()
         return imagen
+
+    def _datos_camara(self, nombre):
+        """Posicion, orientacion (columnas = ejes x, y, z de la camara) y focal en pixeles."""
+        cam = self.datos.cam(nombre)
+        fovy = np.radians(self.modelo.cam(nombre).fovy[0])
+        focal = (self.alto / 2) / np.tan(fovy / 2)
+        return cam.xpos.copy(), cam.xmat.reshape(3, 3).copy(), focal
+
+    def pixel_a_mundo(self, nombre, u, v, profundidad=None):
+        """Punto (x, y, z) del mundo que se ve en el pixel (u, v) de una camara.
+        u = columna (0 = izquierda), v = fila (0 = arriba).
+        'profundidad': imagen de profundidad de esa camara (si no se da, se calcula ahora)."""
+        if profundidad is None:
+            profundidad = self.camara(nombre, profundidad=True)
+        d = float(profundidad[int(v), int(u)])          # metros, a lo largo del eje de la camara
+        pos, rot, focal = self._datos_camara(nombre)
+        x = (u + 0.5 - self.ancho / 2) * d / focal       # a la derecha de la camara
+        y = -(v + 0.5 - self.alto / 2) * d / focal       # hacia arriba de la camara
+        punto_camara = np.array([x, y, -d])              # la camara mira hacia su -Z
+        return pos + rot @ punto_camara
+
+    def mundo_a_pixel(self, nombre, punto):
+        """Pixel (u, v) donde aparece un punto (x, y, z) del mundo. None si queda detras."""
+        pos, rot, focal = self._datos_camara(nombre)
+        x, y, z = rot.T @ (np.asarray(punto, dtype=float) - pos)
+        if z >= 0:
+            return None
+        d = -z
+        u = x * focal / d + self.ancho / 2 - 0.5
+        v = -y * focal / d + self.alto / 2 - 0.5
+        return u, v
+
 
     def posicion_cesta(self):
         """Centro del fondo de la cesta del robot, en coordenadas del mundo."""
