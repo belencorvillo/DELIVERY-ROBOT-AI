@@ -12,10 +12,10 @@ COLORES = {
     "morado":   [0.55, 0.15, 0.70, 1],
 }
 FORMAS = ["caja", "cilindro"]
-TAMANOS = {"pequeno": 0.03, "grande": 0.045}  # media medida en metros
+TAMANOS = {"pequeno": 0.02, "grande": 0.03}  # media medida en metros
 
 # 6 huecos del tablon (x, y): 3 columnas x 2 filas
-HUECOS = [(x, y) for y in (0.1, -0.1) for x in (-0.3, 0.0, 0.3)]
+HUECOS = [(x, y) for y in (0.085, -0.085) for x in (-0.17, 0.0, 0.17)]
 ALTURA_TABLON = 0.02
 
 
@@ -25,7 +25,7 @@ def generar_paquetes(semilla):
     paquetes = []
     for i, (x, y) in enumerate(HUECOS):
         tamano = str(rng.choice(list(TAMANOS)))
-        dx, dy = rng.uniform(-0.03, 0.03, size=2)  # pequeno desplazamiento
+        dx, dy = rng.uniform(-0.02, 0.02, size=2)  # pequeno desplazamiento
         paquetes.append({
             "nombre": f"paquete_{i}",
             "color": str(rng.choice(list(COLORES))),

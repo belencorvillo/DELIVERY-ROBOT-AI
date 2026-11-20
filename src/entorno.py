@@ -1,19 +1,26 @@
 """Entorno comun para todas las escenas. Edu y Ale esto es lo que tenéis que usar :)
 
-
-Las métricas son solo para evaluar. env.casas y env.distancia_entrega() dicen la verdad 
-(qué casa es de cada color, dónde está el paquete). La lógica del robot no debe usarlas para decidir; eso sería hacer trampas. Debe descubrirlo con las cámaras.
-
-
-Ejemplo de llamada en vuestro código de lógica:
+Ejemplo en la escena de la urbanizacion ("reparto"):
     env = Entorno("reparto", semilla=3, visor=True)
     while env.abierto():
-        imagen = env.camara("robot/frontal")
-        env.base.mover(0.3, 0, 0)
+        imagen = env.camara("robot/frontal")   # mirar
+        env.base.mover(0.3, 0, 0)              # decidir: avanzar a 0.3 m/s
+        env.paso()                             # avanzar la simulacion
+    env.cerrar()
+
+Ejemplo en la escena de paqueteria ("pick"):
+    env = Entorno("pick", semilla=3, visor=True)
+    imagen = env.camara("cam_cenital")
+    profundidad = env.camara("cam_cenital", profundidad=True)
+    # ... la vision calcula donde esta el paquete pedido: punto (x, y, z) y su giro
+    env.brazo.ir_a(punto, giro)                # UNA vez por destino, no en cada paso
+    while env.abierto() and not env.brazo.ha_llegado():
         env.paso()
+    env.brazo.cerrar_pinza()
     env.cerrar()
 """
 import time
+
 import mujoco
 import mujoco.viewer
 
@@ -47,6 +54,7 @@ class Entorno:
         mujoco.mj_resetData(self.modelo, self.datos)
         colocar_robot(self.modelo, self.datos, *PUNTO_RECOGIDA)
         self.base.parar()
+        self.brazo.objetivo, self.brazo.cola = None, []
         for _ in range(250):  # medio segundo para que todo se asiente
             mujoco.mj_step(self.modelo, self.datos)
         self._inicio_real = time.time() - self.datos.time
@@ -55,6 +63,7 @@ class Entorno:
         """Avanza n pasos de simulacion (cada uno dura modelo.opt.timestep = 2 ms)."""
         for _ in range(n):
             self.base.paso()
+            self.brazo.paso()
             mujoco.mj_step(self.modelo, self.datos)
         if self._visor is not None:
             self._visor.sync()
@@ -86,6 +95,10 @@ class Entorno:
         if profundidad:
             self._renderer.disable_depth_rendering()
         return imagen
+
+    def posicion_cesta(self):
+        """Centro del fondo de la cesta del robot, en coordenadas del mundo."""
+        return self.datos.body("robot/cesta").xpos.copy() + [0, 0, 0.01]
 
     # ---------- Metricas (para evaluar, NO para que la logica haga trampas) ----------
     def distancia_entrega(self, casa):

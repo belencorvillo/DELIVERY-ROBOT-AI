@@ -7,7 +7,7 @@ from paquetes import generar_paquetes, anadir_paquetes, COLORES
 RUTA_ROBOT = "assets/tidybot/tidybot.xml"
 
 # Pose del robot en el punto de recogida: x, y, orientacion (pi/2 = mirando a +Y, al tablon)
-PUNTO_RECOGIDA = (0.0, -0.6, np.pi / 2)
+PUNTO_RECOGIDA = (0.0, -0.47, np.pi / 2)
 
 ARTICULACIONES_BRAZO = [f"robot/joint_{i}" for i in range(1, 8)]
 # Postura "retract" del TidyBot: brazo plegado para moverse sin chocar
