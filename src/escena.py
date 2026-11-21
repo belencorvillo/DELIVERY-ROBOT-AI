@@ -15,11 +15,17 @@ BRAZO_PLEGADO = [0, -0.34906585, 3.14159265, -2.54818071, 0, -0.87266463, 1.5707
 
 
 # ---------------- Robot ----------------
+ALTURA_SOPORTE = 0.15   # la cesta va subida en un soporte para que el brazo llegue a su fondo
+
+
 def anadir_cesta(spec_robot):
-    """Cesta en la parte trasera de la base, detras del brazo."""
+    """Cesta en la parte trasera de la base, detras del brazo, subida sobre un soporte."""
     base = spec_robot.body("base_link")
-    cesta = base.add_body(name="cesta", pos=[-0.16, 0, 0.335])
     gris = [0.35, 0.35, 0.4, 1]
+    base.add_geom(name="soporte_cesta", type=mujoco.mjtGeom.mjGEOM_BOX,
+                  size=[0.03, 0.03, ALTURA_SOPORTE / 2], pos=[-0.16, 0, 0.335 + ALTURA_SOPORTE / 2],
+                  rgba=[0.25, 0.25, 0.25, 1])
+    cesta = base.add_body(name="cesta", pos=[-0.16, 0, 0.335 + ALTURA_SOPORTE])
     piezas = [  # (media medida, posicion) de cada tabla de la cesta
         ([0.07, 0.15, 0.005], [0, 0, 0.005]),        # fondo
         ([0.07, 0.005, 0.03], [0, 0.145, 0.035]),    # pared izquierda
@@ -30,8 +36,7 @@ def anadir_cesta(spec_robot):
     for i, (size, pos) in enumerate(piezas):
         cesta.add_geom(name=f"cesta_{i}", type=mujoco.mjtGeom.mjGEOM_BOX,
                        size=size, pos=pos, rgba=gris)
-
-
+        
 def anadir_camara_frontal(spec_robot):
     """Camara para navegar: en un mastil delante, mirando al frente y un poco hacia abajo."""
     base = spec_robot.body("base_link")
@@ -77,7 +82,7 @@ def construir_escena_pick(semilla, ruta="escenas/escena_pick.xml"):
 
 # ---------------- Urbanizacion ----------------
 RUTA_CASA = "assets/casa.xml"
-ALTURA_CESTA = 0.335 + 0.01   # altura del fondo de la cesta sobre el suelo
+ALTURA_CESTA = 0.335 + ALTURA_SOPORTE +0.01   # altura del fondo de la cesta sobre el suelo
 CESTA_ATRAS = 0.16            # la cesta esta 16 cm por detras del centro de la base
 
 # Donde va cada casa: (x, y, giro en grados). Las del sur giradas 180 para mirar a la calle.
@@ -124,8 +129,21 @@ def construir_escena_reparto(semilla, ruta="escenas/escena_reparto.xml"):
     return spec.compile(), casas, paquete
 
 
-def distancia_entrega(modelo, datos, casa):
-    """Distancia en el suelo (m) entre el paquete y el punto de entrega de una casa."""
-    p = datos.body("paquete_carga").xpos[:2]
+def distancia_entrega(modelo, datos, casa, paquete="paquete_carga"):
+    """Distancia en el suelo (m) entre un paquete y el punto de entrega de una casa."""
+    p = datos.body(paquete).xpos[:2]
     objetivo = datos.site(f"casa_{casa}/entrega").xpos[:2]
     return float(np.linalg.norm(p - objetivo))
+
+
+
+# ---------------- Escena completa ----------------
+def construir_escena_completa(semilla, ruta="escenas/escena_completa.xml"):
+    """Todo junto: 6 paquetes en el tablon, urbanizacion con casas pintadas y robot."""
+    spec = mujoco.MjSpec.from_file(ruta)
+    paquetes = generar_paquetes(semilla)
+    anadir_paquetes(spec, paquetes)
+    casas = generar_casas(semilla)
+    anadir_casas(spec, casas)
+    anadir_robot(spec)
+    return spec.compile(), paquetes, casas

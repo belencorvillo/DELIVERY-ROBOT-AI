@@ -25,7 +25,7 @@ import mujoco
 import mujoco.viewer
 import numpy as np
 
-from escena import (construir_escena_pick, construir_escena_reparto, colocar_robot,
+from escena import (construir_escena_pick, construir_escena_reparto,construir_escena_completa, colocar_robot,
                     PUNTO_RECOGIDA, distancia_entrega)
 from robot import Base, Brazo
 
@@ -57,13 +57,15 @@ def region_principal(mascara):
 
 class Entorno:
     def __init__(self, escena, semilla=0, visor=False, ancho=640, alto=480):
-        """escena: "pick" o "reparto". visor=True abre la ventana y va a velocidad real."""
+        """escena: "pick", "reparto" o "completa". visor=True abre la ventana y va a velocidad real."""
         self.escena = escena
         self.semilla = semilla
         if escena == "pick":
             self.modelo, self.paquetes = construir_escena_pick(semilla)
         elif escena == "reparto":
             self.modelo, self.casas, self.paquete = construir_escena_reparto(semilla)
+        elif escena == "completa":
+            self.modelo, self.paquetes, self.casas = construir_escena_completa(semilla)
         else:
             raise ValueError(f"Escena desconocida: {escena}")
 
@@ -85,6 +87,8 @@ class Entorno:
         for _ in range(250):  # medio segundo para que todo se asiente
             mujoco.mj_step(self.modelo, self.datos)
         self._inicio_real = time.time() - self.datos.time
+        if self._visor is not None:
+            self._visor.sync()   # que el visor muestre ya al robot en su sitio
 
     def paso(self, n=1):
         """Avanza n pasos de simulacion (cada uno dura modelo.opt.timestep = 2 ms)."""
@@ -97,7 +101,8 @@ class Entorno:
             adelanto = self.datos.time - (time.time() - self._inicio_real)
             if adelanto > 0:
                 time.sleep(adelanto)
-
+            elif adelanto < -0.2:   # la simulacion estuvo parada (p. ej. esperando al usuario)
+                self._inicio_real = time.time() - self.datos.time
     def abierto(self):
         """True mientras el visor siga abierto (o siempre, si no hay visor)."""
         return self._visor is None or self._visor.is_running()
@@ -159,8 +164,8 @@ class Entorno:
         """Centro del fondo de la cesta del robot, en coordenadas del mundo."""
         return self.datos.body("robot/cesta").xpos.copy() + [0, 0, 0.01]
 
-    # ---------- Metricas (para evaluar, NO para que la logica haga trampas) ----------
-       # ---------- Metricas y etiquetas (para evaluar y generar datos, NO para la logica) ----------
+    
+    # ---------- Metricas y etiquetas (para evaluar y generar datos, NO para la logica) ----------
     def etiquetas(self, nombre_camara=None):
         """Imagen de una camara + la verdad de cada objeto que aparece en ella.
         Escena "pick": los paquetes (por defecto con la camara cenital).
@@ -168,15 +173,15 @@ class Entorno:
         Cada objeto visible trae su recuadro en la imagen [u_min, v_min, u_max, v_max],
         cuantos pixeles se ven de el y su mascara (True en los pixeles donde se ve).
         SOLO para generar datasets y evaluar: la logica del robot no debe usarla."""
-        if self.escena == "pick":
-            nombre_camara = nombre_camara or "cam_cenital"
+        if nombre_camara is None:
+            nombre_camara = "cam_cenital" if self.escena == "pick" else "robot/frontal"
+        if nombre_camara == "cam_cenital":
             objetos = [dict(p, geom=self.modelo.body(p["nombre"]).geomadr[0]) for p in self.paquetes]
         else:
-            nombre_camara = nombre_camara or "robot/frontal"
             objetos = [{"nombre": f"casa_{i}", "color": color,
                         "geom": self.modelo.geom(f"casa_{i}/paredes").id}
                        for color, i in sorted(self.casas.items(), key=lambda c: c[1])]
-
+            
         imagen = self.camara(nombre_camara)
         # Segmentacion: para cada pixel, que objeto de la escena se ve en el
         self._renderer.enable_segmentation_rendering()
@@ -199,5 +204,6 @@ class Entorno:
             visibles.append(etiqueta)
         return imagen, visibles
 
-    def distancia_entrega(self, casa):
-        return distancia_entrega(self.modelo, self.datos, casa)
+    def distancia_entrega(self, casa, paquete="paquete_carga"):
+        """A cuantos metros esta un paquete del punto de entrega de una casa (numero 0-5)."""
+        return distancia_entrega(self.modelo, self.datos, casa, paquete)

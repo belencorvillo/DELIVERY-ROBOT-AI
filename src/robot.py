@@ -73,7 +73,7 @@ class Brazo:
         self.sitio = prefijo + "pinch_site"
         self.objetivo = None  # angulos a los que se dirige ahora (None = quieto)
         self.cola = []        # siguientes objetivos (para moverse en linea recta)
-
+        self.velocidad = VEL_ARTICULACION  # rad/s; bajadla al llevar un paquete para que no se escurra
     # ----- Mover por angulos -----
     def angulos(self):
         """Angulos actuales de las 7 articulaciones (radianes)."""
@@ -104,7 +104,7 @@ class Brazo:
         if self.cola and np.max(np.abs(self.angulos() - self.objetivo)) < 0.05:
             self.objetivo = self.cola.pop(0)
         actual = np.array([self.datos.actuator(n).ctrl[0] for n in self.nombres])
-        maximo = VEL_ARTICULACION * self.dt
+        maximo = self.velocidad * self.dt
         nuevo = actual + np.clip(self.objetivo - actual, -maximo, maximo)
         for nombre, valor in zip(self.nombres, nuevo):
             self.datos.actuator(nombre).ctrl = valor
@@ -113,6 +113,11 @@ class Brazo:
     def posicion_pinza(self):
         """Punto entre los dedos de la pinza, en coordenadas del mundo."""
         return self.datos.site(self.sitio).xpos.copy()
+    
+    def giro_pinza(self):
+        """Direccion (rad) en la que cierran ahora los dedos, vista desde arriba."""
+        eje_x = self.datos.site(self.sitio).xmat.reshape(3, 3)[:, 0]
+        return float(np.arctan2(eje_x[1], eje_x[0]))
 
     def cinematica_inversa(self, punto, giro=0.0, inicial=None, iteraciones=500):
         """Calcula los 7 angulos que llevan la pinza a 'punto' (x, y, z del mundo),

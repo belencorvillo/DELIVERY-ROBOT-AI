@@ -1,0 +1,5 @@
+<mujoco model="escena_completa">
+  <include file="../assets/mundo.xml"/>
+  <include file="../assets/zona_paquetes.xml"/>
+  <include file="../assets/urbanizacion.xml"/>
+</mujoco>
